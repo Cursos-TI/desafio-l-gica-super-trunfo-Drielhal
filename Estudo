@@ -1,0 +1,251 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#define TOTAL_CARTAS 4
+#define MAX_NOME 30
+
+// ==========================================
+// ESTRUTURAS DE DADOS (STRUCTS)
+// ==========================================
+
+// Estrutura que define as propriedades de uma carta
+typedef struct {
+    char codigo[5];      // Ex: A1, A2, B1
+    char nome[MAX_NOME];
+    int velocidade_max;  // em km/h
+    float zero_a_cem;    // em segundos (aqui, MENOR é melhor)
+    int potencia;        // em Cavalos (CV)
+} Carta;
+
+// Estrutura que controla o monte de cartas de cada jogador
+typedef struct {
+    Carta *cartas;       // Vetor alocado dinamicamente
+    int topo;            // Índice da carta atual (topo do monte)
+    int qtd_cartas;      // Quantidade atual de cartas no monte
+} Jogador;
+
+// ==========================================
+// PROTÓTIPOS DAS FUNÇÕES
+// ==========================================
+void inicializar_baralho(Carta *baralho);
+void embaralhar(Carta *baralho, int n);
+void distribuir_cartas(Carta *baralho, Jogador *j1, Jogador *j2);
+void exibir_carta(Carta c);
+int comparar_atributos(Carta c1, Carta c2, int atributo);
+
+// ==========================================
+// FUNÇÃO PRINCIPAL
+// ==========================================
+int main() {
+    // Configura a semente para números aleatórios com base no relógio do sistema
+    srand(time(NULL));
+
+    // Alocação dinâmica do baralho principal
+    Carta *baralho_principal = (Carta *) malloc(TOTAL_CARTAS * sizeof(Carta));
+    if (baralho_principal == NULL) {
+        printf("Erro de alocação de memória para o baralho.\n");
+        return 1;
+    }
+
+    inicializar_baralho(baralho_principal);
+    embaralhar(baralho_principal, TOTAL_CARTAS);
+
+    // Inicialização dos Jogadores
+    Jogador jogador1, bot;
+    
+    // Cada jogador começa recebendo metade do baralho principal
+    jogador1.cartas = (Carta *) malloc((TOTAL_CARTAS) * sizeof(Carta));
+    jogador1.topo = 0;
+    jogador1.qtd_cartas = TOTAL_CARTAS / 2;
+
+    bot.cartas = (Carta *) malloc((TOTAL_CARTAS) * sizeof(Carta));
+    bot.topo = 0;
+    bot.qtd_cartas = TOTAL_CARTAS / 2;
+
+    distribuir_cartas(baralho_principal, &jogador1, &bot);
+    
+    // O baralho principal não é mais necessário, liberamos a memória
+    free(baralho_principal);
+
+    printf("===========================================\n");
+    printf("      BEM-VINDO AO SUPER TRUNFO - C        \n");
+    printf("===========================================\n\n");
+
+    int rodada = 1;
+    int turno_jogador = 1; // 1 = Vez do Jogador, 0 = Vez do Bot
+
+    // LOOP PRINCIPAL DO JOGO (LÓGICA)
+    while (jogador1.qtd_cartas > 0 && bot.qtd_cartas > 0) {
+        printf("--- RODADA %d --- (Suas cartas: %d | Bot: %d)\n", 
+               rodada, jogador1.qtd_cartas - jogador1.topo, bot.qtd_cartas - bot.topo);
+        
+        Carta carta_j1 = jogador1.cartas[jogador1.topo];
+        Carta carta_bot = bot.cartas[bot.topo];
+
+        printf("\nSua carta atual:\n");
+        exibir_carta(carta_j1);
+
+        int escolha_atributo;
+
+        if (turno_jogador) {
+            printf("\nSeu turno! Escolha o atributo para confrontar:\n");
+            printf("[1] Velocidade Máxima (km/h)\n");
+            printf("[2] 0 a 100 km/h (Segundos)\n");
+            printf("[3] Potência (CV)\n");
+            printf("Opção: ");
+            scanf("%d", &escolha_atributo);
+        } else {
+            // Inteligência Artificial básica do BOT (escolhe um atributo aleatório)
+            escolha_atributo = (rand() % 3) + 1;
+            printf("\nTurno do BOT! O BOT escolheu o atributo [%d].\n", escolha_atributo);
+        }
+
+        printf("\nRevelando a carta do BOT...\n");
+        exibir_carta(carta_bot);
+
+        // Confronto das cartas
+        int resultado = comparar_atributos(carta_j1, carta_bot, escolha_atributo);
+
+        if (resultado > 0) {
+            printf("\n>>> PARABÉNS! Você venceu esta rodada!\n");
+            
+            // Move a carta do bot para o final do deck do jogador 1
+            jogador1.cartas[jogador1.qtd_cartas] = carta_bot;
+            jogador1.qtd_cartas++;
+            
+            // Move a sua própria carta usada para o final do seu deck
+            jogador1.cartas[jogador1.qtd_cartas] = carta_j1;
+            jogador1.qtd_cartas++;
+
+            turno_jogador = 1; // Mantém o turno
+        } 
+        else if (resultado < 0) {
+            printf("\n>>> QUE PENA! O BOT venceu esta rodada!\n");
+            
+            // Move as duas cartas para o final do deck do BOT
+            bot.cartas[bot.qtd_cartas] = carta_j1;
+            bot.qtd_cartas++;
+            bot.cartas[bot.qtd_cartas] = carta_bot;
+            bot.qtd_cartas++;
+
+            turno_jogador = 0; // Passa o turno para o BOT
+        } 
+        else {
+            printf("\n>>> EMPATE! As cartas voltam para o final dos respectivos decks.\n");
+            jogador1.cartas[jogador1.qtd_cartas] = carta_j1;
+            jogador1.qtd_cartas++;
+            bot.cartas[bot.qtd_cartas] = carta_bot;
+            bot.qtd_cartas++;
+        }
+
+        // Passa para a próxima carta de cima nos montes atuais
+        jogador1.topo++;
+        bot.topo++;
+
+        rodada++;
+        printf("\nPressione ENTER para continuar...");
+        getchar(); // Limpa o buffer
+        getchar(); // Aguarda a tecla
+        printf("\n-------------------------------------------\n");
+    }
+
+    // FIM DE JOGO - VERIFICAÇÃO DE VENCEDOR
+    printf("\n===========================================\n");
+    if (jogador1.topo >= jogador1.qtd_cartas) {
+        printf("FIM DE JOGO! O BOT GANHOU O SUPER TRUNFO!\n");
+    } else {
+        printf("PARABÉNS! VOCÊ É O CAMPEÃO DO SUPER TRUNFO!\n");
+    }
+    printf("===========================================\n");
+
+    // Liberação final da memória alocada dinamicamente
+    free(jogador1.cartas);
+    free(bot.cartas);
+
+    return 0;
+}
+
+// ==========================================
+// IMPLEMENTAÇÃO DAS FUNÇÕES
+// ==========================================
+
+// Cadastra as cartas rigidamente no início do programa
+void inicializar_baralho(Carta *baralho) {
+    strcpy(baralho[0].codigo, "A1");
+    strcpy(baralho[0].nome, "Ferrari SF90");
+    baralho[0].velocidade_max = 340;
+    baralho[0].zero_a_cem = 2.5;
+    baralho[0].potencia = 1000;
+
+    strcpy(baralho[1].codigo, "A2");
+    strcpy(baralho[1].nome, "Porsche 911 GT3");
+    baralho[1].velocidade_max = 318;
+    baralho[1].zero_a_cem = 3.4;
+    baralho[1].potencia = 510;
+
+    strcpy(baralho[2].codigo, "B1");
+    strcpy(baralho[2].nome, "Bugatti Chiron");
+    baralho[2].velocidade_max = 420;
+    baralho[2].zero_a_cem = 2.4;
+    baralho[2].potencia = 1500;
+
+    strcpy(baralho[3].codigo, "B2");
+    strcpy(baralho[3].nome, "Tesla Model S Plaid");
+    baralho[3].velocidade_max = 322;
+    baralho[3].zero_a_cem = 1.99; // Super trunfo de aceleração
+    baralho[3].potencia = 1020;
+}
+
+// Algoritmo clássico de embaralhamento (Fisher-Yates) utilizando ponteiros
+void embaralhar(Carta *baralho, int n) {
+    for (int i = n - 1; i > 0; i--) {
+        int j = rand() % (i + 1);
+        // Troca as posições das cartas na memória
+        Carta temp = baralho[i];
+        baralho[i] = baralho[j];
+        baralho[j] = temp;
+    }
+}
+
+// Distribui as cartas sequencialmente entre os dois jogadores
+void distribuir_cartas(Carta *baralho, Jogador *j1, Jogador *j2) {
+    int metade = TOTAL_CARTAS / 2;
+    for(int i = 0; i < metade; i++) {
+        j1->cartas[i] = baralho[i];
+        j2->cartas[i] = baralho[i + metade];
+    }
+}
+
+// Formata a exibição da carta na tela do terminal
+void exibir_carta(Carta c) {
+    printf("+----------------------------------+\n");
+    printf("| [%s] %-26s |\n", c.codigo, c.nome);
+    printf("+----------------------------------+\n");
+    printf("| Vel. Máxima: %d km/h             |\n", c.velocidade_max);
+    printf("| 0 a 100 km/h: %.2f segundos        |\n", c.zero_a_cem);
+    printf("| Potência: %d CV                  |\n", c.potencia);
+    printf("+----------------------------------+\n");
+}
+
+// Lógica de confronto de atributos. 
+// Retorna 1 se C1 venceu, -1 se C2 venceu, e 0 se deu empate.
+int comparar_atributos(Carta c1, Carta c2, int atributo) {
+    switch (atributo) {
+        case 1: // Velocidade máxima (Quanto maior, melhor)
+            if (c1.velocidade_max > c2.velocidade_max) return 1;
+            if (c1.velocidade_max < c2.velocidade_max) return -1;
+            return 0;
+        case 2: // 0 a 100 km/h (ATENÇÃO: Quanto MENOR o tempo, melhor)
+            if (c1.zero_a_cem < c2.zero_a_cem) return 1;
+            if (c1.zero_a_cem > c2.zero_a_cem) return -1;
+            return 0;
+        case 3: // Potência (Quanto maior, melhor)
+            if (c1.potencia > c2.potencia) return 1;
+            if (c1.potencia < c2.potencia) return -1;
+            return 0;
+        default:
+            return 0;
+    }
+}
